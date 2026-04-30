@@ -1,0 +1,168 @@
+# DevOps and bots : PR
+
+Authors : **Louis FLÉCHAIRE - Paul JOUAN - Tanguy MAIRE AMIGOT - Ones CHERIF**
+
+## Contexte
+
+Dans le cadre du module DevOps, nous avons dus configuré et intégré différents Software Bots afin d'automatiser les tâches répétitives, d'améliorer notre flux de travail et d'en apprendre davantage sur leur fonctionnement. L'objectif principal de ces ajouts est d'assurer une intégration continue fiable, de maintenir la sécurité de nos dépendances à jour et d'automatiser la communication.
+
+## Ce qui a été fait
+
+### Le Bot de mise à jour (Dependabot)
+Ce bot scan notre projet pour trouver des dépendances obsolètes et crée des PR automatiques pour les mettre à jour.
+* **Comment ça marche :** Nous avons ajouté un fichier `.github/dependabot.yml` qui indique à GitHub l'écosystème à surveiller (ex: `npm` pour le front) et la fréquence.
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/front"
+    schedule:
+      interval: "weekly"
+```
+
+### Le Bot de Vérification (Intégration Continue)
+Un workflow GitHub Actions a été mis en place pour compiler le code et lancer les tests à chaque push. Cela empêche le déploiement de code défectueux.
+
+- Comment ça marche : Un fichier .github/workflows/ci.yml définit les étapes à exécuter sur une machine virtuelle (runner) à chaque modification de la branche principale.
+
+```yaml
+name: CI Build
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - name: Build Front
+        run: cd front && npm install && npm run build
+```
+
+### Le Bot de Sécurité Docker (Trivy)
+
+Nous avons ajouté un bot de sécurité pour analyser les images Docker de notre projet (notamment le backend Java) à la recherche de vulnérabilités et de failles connues (CVE).
+
+- **Comment ça marche :** Ce bot utilise `aquasecurity/trivy-action`. Il se lance à chaque `push` ou `pull_request`, construit l'image Docker de l'API, puis la scanne. S'il trouve une faille de niveau `CRITICAL` ou `HIGH`, il fait volontairement échouer le processus (grâce à l'option `exit-code: '1'`) et bloque l'intégration.
+
+```yaml
+name: Docker Security Bot 
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build API Image
+        run: docker build -t mon-api-java ./backend-api
+
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mon-api-java'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+```
+
+### Le Bot de Formatage (Prettier Polyglot)
+
+Pour garantir un style de code propre et uniforme sur l'ensemble du projet, nous avons mis en place un bot de formatage.
+
+- **Comment ça marche :** Déclenché uniquement sur les Pull Requests, ce bot installe Prettier ainsi que son plugin Java. Il vérifie l'intégralité du code source (Front et Back : `.ts`, `.js`, `.java`, `.css`, etc.). S'il détecte des problèmes de formatage, il les corrige et pousse directement un nouveau commit sur la PR avec le message `"style: formatage auto (Angular & Java Maven)"`.
+
+```yaml
+name: Prettier Polyglot Bot
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Prettier & Java Plugin
+        run: npm install prettier prettier-plugin-java
+
+      - name: Run Prettier Bot
+        uses: crey08/prettier_action@v4.3
+        with:
+          prettier_options: --write **/*.{ts,js,html,css,java,json,md,yml}
+          commit_message: "style: formatage auto (Angular & Java Maven)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### Le Bot de Notification (Discord)
+Pour garder l'équipe informée, un bot notifie un salon Discord du statut de l'intégration continue (succès ou échec).
+
+- Comment ça marche : Nous utilisons un script dans notre workflow de CI qui envoie une requête HTTP (via curl) à un Webhook Discord, dont l'URL est cachée dans les secrets GitHub.
+
+```yaml
+- name: Discord notification
+  env:
+    DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+  run: |
+    curl -H "Content-Type: application/json" \
+         -d '{"content": "Nouveau code poussé et compilé avec succès !"}' \
+         $DISCORD_WEBHOOK
+```
+
+### Le Bot de gestion des Releases (Release Drafter)
+Afin d'automatiser nos notes de version, ce bot analyse les Pull Requests fusionnées et génère automatiquement un changelog basé sur les labels (ex: bug, feature).
+
+Comment ça marche : L'action se déclenche au merge et met à jour un brouillon de "Release" en lisant la configuration .github/release-drafter.yml.
+
+```yaml
+name: Release Drafter
+on:
+  push:
+    branches:
+      - main
+jobs:
+  update_release_draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## Où voir les résultats des bots
+
+Voici comment observer les bots :
+
+1. **Les vérifications CI & Sécurité :** Allez dans l'onglet **"Actions"** sur GitHub pour voir les bots compiler le projet et scanner les images Docker avec Trivy lors d'un nouveau push.
+    
+2. **Le formatage auto :** Ouvrez une Pull Request avec du code mal indenté. Le bot Prettier s'activera et ajoutera automatiquement un commit de correction à votre PR.
+    
+3. **Les mises à jour :** Allez dans l'onglet **"Pull requests"**. Dependabot y proposera ses améliorations de dépendances de façon automatisée.
+    
+4. **Les alertes :** Regardez le salon dédié sur **Discord** après avoir poussé du code sur GitHub pour recevoir les retours du bot de notification.
+    
+5. **Les notes de version :** Allez dans l'onglet **"Releases"** (à droite de l'accueil du dépôt) pour voir le brouillon (draft) de la version se générer tout seul suite à vos merges.
+    
+
+## Ce que nous pouvons ajouter
+
+1. Ajouter un bot d'analyse de qualité de code plus profond (comme SonarCloud) pour commenter les Pull Requests avec des métriques de dette technique et des suggestions algorithmiques.
+    
+2. Implémenter l'Auto-assignation pour attribuer automatiquement des relecteurs (reviewers) lors de l'ouverture d'une Pull Request afin de fluidifier la validation du code.
