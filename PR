@@ -163,6 +163,6 @@ Voici comment observer les bots :
 
 ## Ce que nous pouvons ajouter
 
-1. Ajouter un bot d'analyse de qualité de code plus profond (comme SonarCloud) pour commenter les Pull Requests avec des métriques de dette technique et des suggestions algorithmiques.
+1. Ajouter un bot d'analyse de qualité de code (comme SonarCloud).
     
 2. Implémenter l'Auto-assignation pour attribuer automatiquement des relecteurs (reviewers) lors de l'ouverture d'une Pull Request afin de fluidifier la validation du code.
