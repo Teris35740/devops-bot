@@ -1,0 +1,26 @@
+name-template: 'v$RESOLVED_VERSION 🌈'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: 'Nouvelles Fonctionnalités'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: 'Corrections de Bugs'
+    labels:
+      - 'fix'
+      - 'bug'
+  - title: 'Dépendances & Sécurité (Dependabot)'
+    labels:
+      - 'dependencies'
+      - 'security'
+  - title: 'Autres modifications'
+    labels:
+      - '*'
+
+change-template: '- $TITLE par @$AUTHOR dans la PR #$NUMBER'
+
+template: |
+  ## Quoi de neuf dans cette version ?
+  $CHANGES
+
+  **Lien direct des modifications :** https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$RESOLVED_VERSION

@@ -1,0 +1,44 @@
+name: Bot CI/CD Doodle
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js (Frontend)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+          
+      - name: Build Frontend
+        working-directory: ./front
+        run: |
+          npm install
+          npm run build --if-present
+
+      - name: ☕ Setup Java (Backend)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          
+      - name: Build Backend
+        working-directory: ./api
+        run: ./mvnw clean package -DskipTests 
+
+      - name: Bot Notification Discord
+        if: always()
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: 'Build du projet Doodle par ${{ github.actor }} terminé ! Résultat : **${{ job.status }}**'
